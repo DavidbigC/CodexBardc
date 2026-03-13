@@ -7,26 +7,29 @@ import Testing
 @Suite
 struct AppDelegateTests {
     @Test
-    func buildsStatusControllerAfterLaunch() {
+    func buildsConfiguredAppShellAfterLaunch() {
         let appDelegate = AppDelegate()
         var factoryCalls = 0
 
-        // Install a test factory that records invocations without touching NSStatusBar.
-        StatusItemController.factory = { _, _, _, _, _ in
+        AppShellControllerFactory.factory = { _, _, _, _, _ in
             factoryCalls += 1
-            return DummyStatusController()
+            return DummyAppShellController()
         }
-        defer { StatusItemController.factory = StatusItemController.defaultFactory }
+        defer { AppShellControllerFactory.factory = AppShellControllerFactory.defaultFactory }
 
         let settings = SettingsStore(
             configStore: testConfigStore(suiteName: "AppDelegateTests"),
             zaiTokenStore: NoopZaiTokenStore(),
             syntheticTokenStore: NoopSyntheticTokenStore())
         let fetcher = UsageFetcher()
-        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        let store = UsageStore(
+            fetcher: fetcher,
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
         let account = fetcher.loadAccountInfo()
 
-        // configure should not eagerly construct the status controller
+        // configure should not eagerly construct the app shell
         appDelegate.configure(store: store, settings: settings, account: account, selection: PreferencesSelection())
         #expect(factoryCalls == 0)
 
@@ -41,6 +44,6 @@ struct AppDelegateTests {
 }
 
 @MainActor
-private final class DummyStatusController: StatusItemControlling {
-    func openMenuFromShortcut() {}
+private final class DummyAppShellController: AppShellControlling {
+    func handlePrimaryShortcut() {}
 }

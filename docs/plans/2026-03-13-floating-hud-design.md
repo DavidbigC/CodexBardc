@@ -13,8 +13,8 @@ Build a simplified macOS-native CodexBar variant that only tracks Codex and Clau
 ## Scope
 
 ### Keep
-- Codex usage fetching
-- Claude usage fetching
+- Codex usage fetching via CLI JSON-RPC, with CLI PTY `/status` fallback
+- Claude usage fetching via CLI PTY (`/usage` and optional `/status`)
 - Shared normalization and refresh pipeline
 - Auto-refresh
 - Compact and expanded HUD states
@@ -29,7 +29,11 @@ Build a simplified macOS-native CodexBar variant that only tracks Codex and Clau
 - Merge-icons mode
 - Multi-provider UI and settings for providers other than Codex and Claude
 - Sparkle/updater work unless needed to keep the app building
-- Browser and dashboard enrichment paths unless required for Codex or Claude accuracy
+- OpenAI web dashboard scraping
+- Browser cookie import and manual cookie-header flows
+- Claude web API and Claude OAuth fallback paths
+- Most Keychain-backed token and cookie storage
+- Local cost-history scans unless they are needed later for token details
 
 ## Architecture
 
@@ -42,6 +46,9 @@ Build a simplified macOS-native CodexBar variant that only tracks Codex and Clau
 - Reuse `CodexBarCore` provider logic where possible.
 - Keep a single store for normalized usage snapshots.
 - Limit the active providers to Codex and Claude in the simplified app.
+- Prefer local CLI-based probes over browser or OAuth integrations.
+- For Codex, use CLI JSON-RPC first and PTY `/status` as fallback.
+- For Claude, use CLI PTY as the only active v1 data source.
 
 ### UI state
 - `collapsed`: compact pill with both providers visible
@@ -60,10 +67,14 @@ Build a simplified macOS-native CodexBar variant that only tracks Codex and Clau
 - One section per provider
 - Shows:
   - current usage progress
-  - tokens used
   - reset time
   - last updated time
   - disconnected or stale state
+  - any extra details exposed directly by the chosen CLI source
+
+### Deferred detail metrics
+- Token totals and richer cost history are deferred unless the existing local scanners can be added without pulling the old app’s broader complexity back in.
+- V1 should prioritize reliable live quota state over historical accounting.
 
 ### Tucked
 - Reduced pill or slim edge-docked sliver
@@ -83,6 +94,7 @@ Build a simplified macOS-native CodexBar variant that only tracks Codex and Clau
 - Stale data is shown as stale, not as fresh
 - Missing auth or unavailable CLI should show a compact disconnected state
 - Refresh failures should not interrupt the user with modal UI
+- CLI-specific errors should surface as concise provider status text rather than login workflows
 
 ## Testing Strategy
 - Preserve and extend provider parsing tests for Codex and Claude
@@ -94,6 +106,8 @@ Build a simplified macOS-native CodexBar variant that only tracks Codex and Clau
 - The safest refactor is to preserve the provider pipeline and replace the shell around it.
 - `NSStatusItem` concerns should be isolated and removed from the simplified app path.
 - `NSPanel` behavior should be centralized in a dedicated controller rather than spread across views.
+- The simplification target is not "all CodexBar features in a new UI"; it is "a small HUD around the Codex and Claude CLI probes."
+- Keychain, cookie, browser, and dashboard code should be treated as opt-in legacy surface area and avoided in the active path unless a hard dependency emerges.
 
 ## Success Criteria
 - The app launches into a floating always-on-top HUD

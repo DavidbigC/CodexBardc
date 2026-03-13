@@ -1,6 +1,5 @@
 import AppKit
 import CodexBarCore
-import KeyboardShortcuts
 import Observation
 import QuartzCore
 import Security
@@ -252,7 +251,7 @@ private func makeUpdaterController() -> UpdaterProviding {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let updaterController: UpdaterProviding = makeUpdaterController()
-    private var statusController: StatusItemControlling?
+    private var appShellController: AppShellControlling?
     private var store: UsageStore?
     private var settings: SettingsStore?
     private var account: AccountInfo?
@@ -271,12 +270,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppNotifications.shared.requestAuthorizationOnStartup()
-        self.ensureStatusController()
-        KeyboardShortcuts.onKeyUp(for: .openMenu) { [weak self] in
-            Task { @MainActor [weak self] in
-                self?.statusController?.openMenuFromShortcut()
-            }
-        }
+        self.ensureAppShellController()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -308,11 +302,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Bundle.main.url(forResource: "Icon-classic", withExtension: "icns")
     }
 
-    private func ensureStatusController() {
-        if self.statusController != nil { return }
+    private func ensureAppShellController() {
+        if self.appShellController != nil { return }
 
         if let store, let settings, let account, let selection = self.preferencesSelection {
-            self.statusController = StatusItemController.factory(
+            self.appShellController = AppShellControllerFactory.factory(
                 store,
                 settings,
                 account,
@@ -323,14 +317,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Defensive fallback: this should not be hit in normal app lifecycle.
         CodexBarLog.logger(LogCategories.app)
-            .error("StatusItemController fallback path used; settings/store mismatch likely.")
-        assertionFailure("StatusItemController fallback path used; check app lifecycle wiring.")
+            .error("App shell fallback path used; settings/store mismatch likely.")
+        assertionFailure("App shell fallback path used; check app lifecycle wiring.")
         let fallbackSettings = SettingsStore()
         let fetcher = UsageFetcher()
         let browserDetection = BrowserDetection(cacheTTL: BrowserDetection.defaultCacheTTL)
         let fallbackAccount = fetcher.loadAccountInfo()
         let fallbackStore = UsageStore(fetcher: fetcher, browserDetection: browserDetection, settings: fallbackSettings)
-        self.statusController = StatusItemController.factory(
+        self.appShellController = AppShellControllerFactory.factory(
             fallbackStore,
             fallbackSettings,
             fallbackAccount,

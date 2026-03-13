@@ -1,4 +1,3 @@
-import KeyboardShortcuts
 import SwiftUI
 
 @MainActor
@@ -10,24 +9,6 @@ struct AdvancedPane: View {
     var body: some View {
         ScrollView(.vertical, showsIndicators: true) {
             VStack(alignment: .leading, spacing: 16) {
-                SettingsSection(contentSpacing: 8) {
-                    Text("Keyboard shortcut")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .textCase(.uppercase)
-                    HStack(alignment: .center, spacing: 12) {
-                        Text("Open menu")
-                            .font(.body)
-                        Spacer()
-                        KeyboardShortcuts.Recorder(for: .openMenu)
-                    }
-                    Text("Trigger the menu bar menu from anywhere.")
-                        .font(.footnote)
-                        .foregroundStyle(.tertiary)
-                }
-
-                Divider()
-
                 SettingsSection(contentSpacing: 10) {
                     HStack(spacing: 12) {
                         Button {

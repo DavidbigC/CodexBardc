@@ -19,7 +19,8 @@ read_when:
 
 ## Entry points
 - `CodexBarApp`: SwiftUI keepalive + Settings scene.
-- `AppDelegate`: wires status controller, Sparkle updater, notifications.
+- `AppDelegate`: wires the app shell, Sparkle updater, and notifications.
+- `AppShellControllerFactory`: presentation seam so the app can swap the status-item shell for a floating HUD shell without changing provider bootstrapping.
 
 ## Data flow
 - Background refresh → `UsageFetcher`/provider probes → `UsageStore` → menu/icon/widgets.

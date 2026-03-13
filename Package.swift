@@ -21,7 +21,6 @@ let package = Package(
         .package(url: "https://github.com/steipete/Commander", from: "0.2.1"),
         .package(url: "https://github.com/apple/swift-log", from: "1.9.1"),
         .package(url: "https://github.com/apple/swift-syntax", from: "600.0.1"),
-        .package(url: "https://github.com/sindresorhus/KeyboardShortcuts", from: "2.4.0"),
         sweetCookieKitDependency,
     ],
     targets: {
@@ -81,7 +80,6 @@ let package = Package(
                 name: "CodexBar",
                 dependencies: [
                     .product(name: "Sparkle", package: "Sparkle"),
-                    .product(name: "KeyboardShortcuts", package: "KeyboardShortcuts"),
                     "CodexBarMacroSupport",
                     "CodexBarCore",
                 ],
