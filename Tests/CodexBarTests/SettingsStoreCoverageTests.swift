@@ -154,9 +154,9 @@ struct SettingsStoreCoverageTests {
     }
 
     @Test
-    func claudeKeychainPromptMode_defaultsToOnlyOnUserAction() {
+    func claudeKeychainPromptMode_defaultsToNever() {
         let settings = Self.makeSettingsStore()
-        #expect(settings.claudeOAuthKeychainPromptMode == .onlyOnUserAction)
+        #expect(settings.claudeOAuthKeychainPromptMode == .never)
     }
 
     @Test
@@ -177,7 +177,7 @@ struct SettingsStoreCoverageTests {
     }
 
     @Test
-    func claudeKeychainPromptMode_invalidRawFallsBackToOnlyOnUserAction() throws {
+    func claudeKeychainPromptMode_invalidRawFallsBackToNever() throws {
         let suite = "SettingsStoreCoverageTests-claude-keychain-prompt-mode-invalid"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
@@ -185,7 +185,7 @@ struct SettingsStoreCoverageTests {
         let configStore = testConfigStore(suiteName: suite)
 
         let settings = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
-        #expect(settings.claudeOAuthKeychainPromptMode == .onlyOnUserAction)
+        #expect(settings.claudeOAuthKeychainPromptMode == .never)
     }
 
     @Test

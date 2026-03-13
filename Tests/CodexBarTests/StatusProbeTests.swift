@@ -225,6 +225,30 @@ struct StatusProbeTests {
     }
 
     @Test
+    func parseClaudeStatus_prefersMostRecentCompleteUsagePanel() throws {
+        let sample = """
+        Settings: Status   Config   Usage (tab to cycle)
+
+        Current session · Resets 1pm (Europe/London)
+        ████████████████████████████████████
+        72% used
+
+        Extra usage
+        Extra usage not enabled • /extra-usage to enable
+
+        Esc to cancel
+
+        Settings: Status   Config   Usage (tab to cycle)
+        Loading usage data…
+        Esc to cancel
+        """
+
+        let snap = try ClaudeStatusProbe.parse(text: sample)
+        #expect(snap.sessionPercentLeft == 28)
+        #expect(snap.primaryResetDescription == "Resets 1pm (Europe/London)")
+    }
+
+    @Test
     func parseClaudeStatus_ignoresStatusBarContextPercent() throws {
         let sample = """
         Claude Code v2.1.29

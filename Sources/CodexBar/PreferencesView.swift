@@ -41,7 +41,7 @@ struct PreferencesView: View {
                 .tabItem { Label("Providers", systemImage: "square.grid.2x2") }
                 .tag(PreferencesTab.providers)
 
-            DisplayPane(settings: self.settings, store: self.store)
+            DisplayPane(settings: self.settings)
                 .tabItem { Label("Display", systemImage: "eye") }
                 .tag(PreferencesTab.display)
 

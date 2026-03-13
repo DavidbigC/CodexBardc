@@ -198,10 +198,44 @@ extension SettingsStore {
         }
     }
 
+    var hudOpacity: Double {
+        get { self.defaultsState.hudOpacity }
+        set {
+            let clamped = min(max(newValue, 0.45), 1.0)
+            self.defaultsState.hudOpacity = clamped
+            self.userDefaults.set(clamped, forKey: "hudOpacity")
+        }
+    }
+
+    var hudScale: Double {
+        get { self.defaultsState.hudScale }
+        set {
+            let clamped = min(max(newValue, 0.85), 1.35)
+            self.defaultsState.hudScale = clamped
+            self.userDefaults.set(clamped, forKey: "hudScale")
+        }
+    }
+
+    var hudAppearanceStyle: HUDAppearanceStyle {
+        get { HUDAppearanceStyle(rawValue: self.defaultsState.hudAppearanceStyleRaw) ?? .dark }
+        set {
+            self.defaultsState.hudAppearanceStyleRaw = newValue.rawValue
+            self.userDefaults.set(newValue.rawValue, forKey: "hudAppearanceStyle")
+        }
+    }
+
+    var hudAccent: HUDAppearanceAccent {
+        get { HUDAppearanceAccent(rawValue: self.defaultsState.hudAccentRaw) ?? .system }
+        set {
+            self.defaultsState.hudAccentRaw = newValue.rawValue
+            self.userDefaults.set(newValue.rawValue, forKey: "hudAccent")
+        }
+    }
+
     var claudeOAuthKeychainPromptMode: ClaudeOAuthKeychainPromptMode {
         get {
             let raw = self.defaultsState.claudeOAuthKeychainPromptModeRaw
-            return ClaudeOAuthKeychainPromptMode(rawValue: raw ?? "") ?? .onlyOnUserAction
+            return ClaudeOAuthKeychainPromptMode(rawValue: raw ?? "") ?? .never
         }
         set {
             self.defaultsState.claudeOAuthKeychainPromptModeRaw = newValue.rawValue

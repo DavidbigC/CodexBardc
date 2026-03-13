@@ -116,7 +116,9 @@ actor ClaudeCLISession {
         let trimmed = subcommand.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmed.isEmpty {
             try self.send(trimmed)
-            try self.send("\r")
+            if !trimmed.hasPrefix("/") {
+                try self.send("\r")
+            }
         }
 
         let stopNeedles = stopOnSubstrings.map { Self.normalizedNeedle($0) }

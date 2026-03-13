@@ -148,10 +148,10 @@ final class SettingsStore {
         LaunchAtLoginManager.setEnabled(self.launchAtLogin)
         self.runInitialProviderDetectionIfNeeded()
         self.applyTokenCostDefaultIfNeeded()
-        if self.claudeUsageDataSource != .cli { self.claudeWebExtrasEnabled = false }
-        self.openAIWebAccessEnabled = self.codexCookieSource.isEnabled
-        Self.sharedDefaults?.set(self.debugDisableKeychainAccess, forKey: "debugDisableKeychainAccess")
-        KeychainAccessGate.isDisabled = self.debugDisableKeychainAccess
+        self.claudeWebExtrasEnabled = false
+        self.openAIWebAccessEnabled = false
+        self.debugDisableKeychainAccess = true
+        self.claudeOAuthKeychainPromptMode = .never
     }
 }
 
@@ -169,7 +169,7 @@ extension SettingsStore {
                 userDefaults.set(shared, forKey: "debugDisableKeychainAccess")
                 return shared
             }
-            return false
+            return true
         }()
         let debugFileLoggingEnabled = userDefaults.object(forKey: "debugFileLoggingEnabled") as? Bool ?? false
         let debugLogLevelRaw = userDefaults.string(forKey: "debugLogLevel") ?? CodexBarLog.Level.verbose.rawValue
@@ -205,15 +205,19 @@ extension SettingsStore {
         let hidePersonalInfo = userDefaults.object(forKey: "hidePersonalInfo") as? Bool ?? false
         let randomBlinkEnabled = userDefaults.object(forKey: "randomBlinkEnabled") as? Bool ?? false
         let menuBarShowsHighestUsage = userDefaults.object(forKey: "menuBarShowsHighestUsage") as? Bool ?? false
+        let hudOpacity = min(max(userDefaults.object(forKey: "hudOpacity") as? Double ?? 0.96, 0.45), 1.0)
+        let hudScale = min(max(userDefaults.object(forKey: "hudScale") as? Double ?? 1.0, 0.85), 1.35)
+        let hudAppearanceStyleRaw = userDefaults.string(forKey: "hudAppearanceStyle") ?? HUDAppearanceStyle.light
+            .rawValue
+        let hudAccentRaw = userDefaults.string(forKey: "hudAccent") ?? HUDAppearanceAccent.system.rawValue
         let claudeOAuthKeychainPromptModeRaw = userDefaults.string(forKey: "claudeOAuthKeychainPromptMode")
+            ?? ClaudeOAuthKeychainPromptMode.never.rawValue
         let claudeOAuthKeychainReadStrategyRaw = userDefaults.string(forKey: "claudeOAuthKeychainReadStrategy")
-        let claudeWebExtrasEnabledRaw = userDefaults.object(forKey: "claudeWebExtrasEnabled") as? Bool ?? false
+        let claudeWebExtrasEnabledRaw = false
         let creditsExtrasDefault = userDefaults.object(forKey: "showOptionalCreditsAndExtraUsage") as? Bool
         let showOptionalCreditsAndExtraUsage = creditsExtrasDefault ?? true
         if creditsExtrasDefault == nil { userDefaults.set(true, forKey: "showOptionalCreditsAndExtraUsage") }
-        let openAIWebAccessDefault = userDefaults.object(forKey: "openAIWebAccessEnabled") as? Bool
-        let openAIWebAccessEnabled = openAIWebAccessDefault ?? true
-        if openAIWebAccessDefault == nil { userDefaults.set(true, forKey: "openAIWebAccessEnabled") }
+        let openAIWebAccessEnabled = false
         let jetbrainsIDEBasePath = userDefaults.string(forKey: "jetbrainsIDEBasePath") ?? ""
         let mergeIcons = userDefaults.object(forKey: "mergeIcons") as? Bool ?? true
         let switcherShowsIcons = userDefaults.object(forKey: "switcherShowsIcons") as? Bool ?? true
@@ -246,6 +250,10 @@ extension SettingsStore {
             hidePersonalInfo: hidePersonalInfo,
             randomBlinkEnabled: randomBlinkEnabled,
             menuBarShowsHighestUsage: menuBarShowsHighestUsage,
+            hudOpacity: hudOpacity,
+            hudScale: hudScale,
+            hudAppearanceStyleRaw: hudAppearanceStyleRaw,
+            hudAccentRaw: hudAccentRaw,
             claudeOAuthKeychainPromptModeRaw: claudeOAuthKeychainPromptModeRaw,
             claudeOAuthKeychainReadStrategyRaw: claudeOAuthKeychainReadStrategyRaw,
             claudeWebExtrasEnabledRaw: claudeWebExtrasEnabledRaw,

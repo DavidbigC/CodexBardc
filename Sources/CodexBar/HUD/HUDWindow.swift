@@ -4,7 +4,7 @@ final class HUDWindow: NSPanel {
     init(contentRect: NSRect) {
         super.init(
             contentRect: contentRect,
-            styleMask: [.borderless, .nonactivatingPanel],
+            styleMask: [.borderless, .nonactivatingPanel, .resizable],
             backing: .buffered,
             defer: false)
         self.isFloatingPanel = true
@@ -17,8 +17,14 @@ final class HUDWindow: NSPanel {
         self.isMovableByWindowBackground = true
         self.titleVisibility = .hidden
         self.titlebarAppearsTransparent = true
+        self.minSize = NSSize(width: 280, height: 220)
     }
 
-    override var canBecomeKey: Bool { true }
-    override var canBecomeMain: Bool { false }
+    override var canBecomeKey: Bool {
+        true
+    }
+
+    override var canBecomeMain: Bool {
+        false
+    }
 }

@@ -109,6 +109,27 @@ public struct ClaudeStatusProbe: Sendable {
         }
     }
 
+    private static let sessionLabelVariants = [
+        "Current session",
+        "Currentsession",
+        "Curret session",
+        "Curretsession",
+    ]
+
+    private static let weeklyLabelVariants = [
+        "Current week (all models)",
+        "Currentweek(allmodels)",
+    ]
+
+    private static let opusLabelVariants = [
+        "Current week (Opus)",
+        "Current week (Sonnet only)",
+        "Current week (Sonnet)",
+        "Currentweek(Opus)",
+        "Currentweek(Sonnetonly)",
+        "Currentweek(Sonnet)",
+    ]
+
     public static func parse(text: String, statusText: String? = nil) throws -> ClaudeStatusSnapshot {
         let clean = TextParsing.stripANSICodes(text)
         let statusClean = statusText.map(TextParsing.stripANSICodes)
@@ -132,15 +153,9 @@ public struct ClaudeStatusProbe: Sendable {
         let usagePanelText = self.trimToLatestUsagePanel(clean) ?? clean
         let labelContext = LabelSearchContext(text: usagePanelText)
 
-        var sessionPct = self.extractPercent(labelSubstring: "Current session", context: labelContext)
-        var weeklyPct = self.extractPercent(labelSubstring: "Current week (all models)", context: labelContext)
-        var opusPct = self.extractPercent(
-            labelSubstrings: [
-                "Current week (Opus)",
-                "Current week (Sonnet only)",
-                "Current week (Sonnet)",
-            ],
-            context: labelContext)
+        var sessionPct = self.extractPercent(labelSubstrings: self.sessionLabelVariants, context: labelContext)
+        var weeklyPct = self.extractPercent(labelSubstrings: self.weeklyLabelVariants, context: labelContext)
+        var opusPct = self.extractPercent(labelSubstrings: self.opusLabelVariants, context: labelContext)
 
         // Fallback: order-based percent scraping when labels are present but the surrounding layout moved.
         // Only apply the fallback when the corresponding label exists in the rendered panel; enterprise accounts
@@ -175,18 +190,12 @@ public struct ClaudeStatusProbe: Sendable {
             throw ClaudeStatusProbeError.parseFailed("Missing Current session.")
         }
 
-        let sessionReset = self.extractReset(labelSubstring: "Current session", context: labelContext)
+        let sessionReset = self.extractReset(labelSubstrings: self.sessionLabelVariants, context: labelContext)
         let weeklyReset = hasWeeklyLabel
-            ? self.extractReset(labelSubstring: "Current week (all models)", context: labelContext)
+            ? self.extractReset(labelSubstrings: self.weeklyLabelVariants, context: labelContext)
             : nil
         let opusReset = hasOpusLabel
-            ? self.extractReset(
-                labelSubstrings: [
-                    "Current week (Opus)",
-                    "Current week (Sonnet only)",
-                    "Current week (Sonnet)",
-                ],
-                context: labelContext)
+            ? self.extractReset(labelSubstrings: self.opusLabelVariants, context: labelContext)
             : nil
 
         return ClaudeStatusSnapshot(
@@ -433,18 +442,54 @@ public struct ClaudeStatusProbe: Sendable {
     /// The Claude TUI draws a "Settings: … Usage …" header; we slice from its last occurrence to avoid earlier screen
     /// fragments (like the status bar) contaminating percent scraping.
     private static func trimToLatestUsagePanel(_ text: String) -> String? {
-        guard let settingsRange = text.range(of: "Settings:", options: [.caseInsensitive, .backwards]) else {
-            return nil
+        var completeCandidates: [String] = []
+        var fallbackCandidates: [String] = []
+        var searchRange: Range<String.Index>? = text.startIndex..<text.endIndex
+
+        while let currentRange = searchRange,
+              let settingsRange = text.range(
+                  of: "Settings:",
+                  options: [.caseInsensitive, .backwards],
+                  range: currentRange)
+        {
+            let tail = String(text[settingsRange.lowerBound...])
+            switch self.usagePanelCandidateKind(tail) {
+            case .complete:
+                completeCandidates.append(tail)
+            case .fallback:
+                fallbackCandidates.append(tail)
+            case .invalid:
+                break
+            }
+            searchRange = text.startIndex..<settingsRange.lowerBound
         }
-        let tail = text[settingsRange.lowerBound...]
-        guard tail.range(of: "Usage", options: .caseInsensitive) != nil else { return nil }
-        let lower = tail.lowercased()
+
+        return completeCandidates.first ?? fallbackCandidates.first
+    }
+
+    private enum UsagePanelCandidateKind {
+        case invalid
+        case fallback
+        case complete
+    }
+
+    private static func usagePanelCandidateKind(_ text: String) -> UsagePanelCandidateKind {
+        guard text.range(of: "Usage", options: .caseInsensitive) != nil else { return .invalid }
+        let lower = text.lowercased()
+        let compact = lower.filter { !$0.isWhitespace }
         let hasPercent = lower.contains("%")
         let hasUsageWords = lower.contains("used") || lower.contains("left") || lower.contains("remaining")
             || lower.contains("available")
-        let hasLoading = lower.contains("loading usage")
-        guard (hasPercent && hasUsageWords) || hasLoading else { return nil }
-        return String(tail)
+        let hasLoading = compact.contains("loadingusagedata")
+        let hasSessionLabel = compact.contains("currentsession") || compact.contains("curretsession")
+        let hasWeekLabel = compact.contains("currentweek")
+        if hasSessionLabel || hasWeekLabel, hasPercent, hasUsageWords {
+            return .complete
+        }
+        if hasLoading {
+            return .fallback
+        }
+        return .invalid
     }
 
     private static func extractReset(labelSubstring: String, context: LabelSearchContext) -> String? {
@@ -470,7 +515,10 @@ public struct ClaudeStatusProbe: Sendable {
     }
 
     private static func resetFromLine(_ line: String) -> String? {
-        guard let range = line.range(of: "Resets", options: [.caseInsensitive]) else { return nil }
+        guard let range = line.range(
+            of: #"Rese(?:ts?|s)"#,
+            options: [.caseInsensitive, .regularExpression])
+        else { return nil }
         let raw = String(line[range.lowerBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
         return self.cleanResetLine(raw)
     }
@@ -497,6 +545,10 @@ public struct ClaudeStatusProbe: Sendable {
     private static func cleanResetLine(_ raw: String) -> String {
         // TTY capture sometimes appends a stray ")" at line ends; trim it to keep snapshots stable.
         var cleaned = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        cleaned = cleaned.replacingOccurrences(
+            of: #"(?i)^rese(?:ts?|s)"#,
+            with: "Resets",
+            options: .regularExpression)
         cleaned = cleaned.trimmingCharacters(in: CharacterSet(charactersIn: " )"))
         let openCount = cleaned.count(where: { $0 == "(" })
         let closeCount = cleaned.count(where: { $0 == ")" })
@@ -571,7 +623,7 @@ public struct ClaudeStatusProbe: Sendable {
 
     private static func normalizeResetInput(_ text: String?) -> (String, TimeZone?)? {
         guard var raw = text?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else { return nil }
-        raw = raw.replacingOccurrences(of: #"(?i)^resets?:?\s*"#, with: "", options: .regularExpression)
+        raw = raw.replacingOccurrences(of: #"(?i)^rese(?:ts?|s):?\s*"#, with: "", options: .regularExpression)
         raw = raw.replacingOccurrences(of: " at ", with: " ", options: .caseInsensitive)
         raw = raw.replacingOccurrences(of: #"(?i)\b([A-Za-z]{3})(\d)"#, with: "$1 $2", options: .regularExpression)
         raw = raw.replacingOccurrences(of: #",(\d)"#, with: ", $1", options: .regularExpression)
@@ -737,16 +789,11 @@ public struct ClaudeStatusProbe: Sendable {
 
     static func probeWorkingDirectoryURL() -> URL {
         let fm = FileManager.default
-        let base = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first ?? fm.temporaryDirectory
-        let dir = base
-            .appendingPathComponent("CodexBar", isDirectory: true)
-            .appendingPathComponent("ClaudeProbe", isDirectory: true)
-        do {
-            try fm.createDirectory(at: dir, withIntermediateDirectories: true)
-            return dir
-        } catch {
-            return fm.temporaryDirectory
+        let home = fm.homeDirectoryForCurrentUser
+        if fm.fileExists(atPath: home.path) {
+            return home
         }
+        return fm.temporaryDirectory
     }
 
     /// Run claude CLI inside a PTY so we can respond to interactive permission prompts.

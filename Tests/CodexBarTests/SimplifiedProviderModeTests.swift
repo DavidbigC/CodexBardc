@@ -22,4 +22,25 @@ struct SimplifiedProviderModeTests {
 
         #expect(settings.orderedProviders() == [.codex, .claude])
     }
+
+    @Test
+    func simplifiedModePrefersAutoDataSourcesWhileKeepingWebDisabled() {
+        let suite = "SimplifiedProviderModeTests-auto-sources"
+        let defaults = UserDefaults(suiteName: suite) ?? .standard
+        defaults.removePersistentDomain(forName: suite)
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: testConfigStore(suiteName: suite),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(settings.codexUsageDataSource == .auto)
+        #expect(settings.claudeUsageDataSource == .auto)
+        #expect(settings.codexCookieSource == .off)
+        #expect(settings.claudeCookieSource == .off)
+        #expect(settings.openAIWebAccessEnabled == false)
+        #expect(settings.claudeWebExtrasEnabled == false)
+        #expect(settings.debugDisableKeychainAccess)
+        #expect(settings.claudeOAuthKeychainPromptMode == .never)
+    }
 }

@@ -8,7 +8,7 @@ extension SettingsStore {
             return Self.codexUsageDataSource(from: source)
         }
         set {
-            let source: ProviderSourceMode? = switch newValue {
+            let source: ProviderSourceMode = switch newValue {
             case .auto: .auto
             case .oauth: .oauth
             case .cli: .cli
@@ -21,27 +21,13 @@ extension SettingsStore {
     }
 
     var codexCookieHeader: String {
-        get { self.configSnapshot.providerConfig(for: .codex)?.sanitizedCookieHeader ?? "" }
-        set {
-            self.updateProviderConfig(provider: .codex) { entry in
-                entry.cookieHeader = self.normalizedConfigValue(newValue)
-            }
-            self.logSecretUpdate(provider: .codex, field: "cookieHeader", value: newValue)
-        }
+        get { "" }
+        set { _ = newValue }
     }
 
     var codexCookieSource: ProviderCookieSource {
-        get {
-            let resolved = self.resolvedCookieSource(provider: .codex, fallback: .auto)
-            return self.openAIWebAccessEnabled ? resolved : .off
-        }
-        set {
-            self.updateProviderConfig(provider: .codex) { entry in
-                entry.cookieSource = newValue
-            }
-            self.logProviderModeChange(provider: .codex, field: "cookieSource", value: newValue.rawValue)
-            self.openAIWebAccessEnabled = newValue.isEnabled
-        }
+        get { .off }
+        set { _ = newValue }
     }
 
     func ensureCodexCookieLoaded() {}
@@ -49,49 +35,22 @@ extension SettingsStore {
 
 extension SettingsStore {
     func codexSettingsSnapshot(tokenOverride: TokenAccountOverride?) -> ProviderSettingsSnapshot.CodexProviderSettings {
-        ProviderSettingsSnapshot.CodexProviderSettings(
+        _ = tokenOverride
+        return ProviderSettingsSnapshot.CodexProviderSettings(
             usageDataSource: self.codexUsageDataSource,
-            cookieSource: self.codexSnapshotCookieSource(tokenOverride: tokenOverride),
-            manualCookieHeader: self.codexSnapshotCookieHeader(tokenOverride: tokenOverride))
+            cookieSource: .off,
+            manualCookieHeader: "")
     }
 
     private static func codexUsageDataSource(from source: ProviderSourceMode?) -> CodexUsageDataSource {
         guard let source else { return .auto }
         switch source {
-        case .auto, .web, .api:
+        case .auto, .web:
             return .auto
-        case .cli:
-            return .cli
         case .oauth:
             return .oauth
+        case .cli, .api:
+            return .cli
         }
-    }
-
-    private func codexSnapshotCookieHeader(tokenOverride: TokenAccountOverride?) -> String {
-        let fallback = self.codexCookieHeader
-        guard let support = TokenAccountSupportCatalog.support(for: .codex),
-              case .cookieHeader = support.injection
-        else {
-            return fallback
-        }
-        guard let account = ProviderTokenAccountSelection.selectedAccount(
-            provider: .codex,
-            settings: self,
-            override: tokenOverride)
-        else {
-            return fallback
-        }
-        return TokenAccountSupportCatalog.normalizedCookieHeader(account.token, support: support)
-    }
-
-    private func codexSnapshotCookieSource(tokenOverride: TokenAccountOverride?) -> ProviderCookieSource {
-        let fallback = self.codexCookieSource
-        guard let support = TokenAccountSupportCatalog.support(for: .codex),
-              support.requiresManualCookieSource
-        else {
-            return fallback
-        }
-        if self.tokenAccounts(for: .codex).isEmpty { return fallback }
-        return .manual
     }
 }

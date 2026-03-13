@@ -69,7 +69,7 @@ public enum CodexProviderDescriptor {
             case .api:
                 return []
             case .auto:
-                return [oauth, cli]
+                return [oauth, web, cli]
             }
         }
     }

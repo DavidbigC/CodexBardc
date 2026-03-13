@@ -1,5 +1,6 @@
 import AppKit
 import CodexBarCore
+import Observation
 import SwiftUI
 
 @MainActor
@@ -8,6 +9,7 @@ final class HUDWindowController: NSWindowController, NSWindowDelegate, AppShellC
     private let settings: SettingsStore
     private let persistence: HUDPersistence
     private var mode: HUDDisplayMode
+    private var expandedSize: CGSize?
 
     init(
         store: UsageStore,
@@ -19,12 +21,18 @@ final class HUDWindowController: NSWindowController, NSWindowDelegate, AppShellC
         self.persistence = persistence
         let persisted = persistence.loadState()
         self.mode = persisted.mode
+        self.expandedSize = persisted.size
 
-        let frame = HUDWindowController.initialFrame(origin: persisted.origin, mode: persisted.mode)
+        let frame = HUDWindowController.initialFrame(
+            origin: persisted.origin,
+            size: persisted.size,
+            mode: persisted.mode)
         let panel = HUDWindow(contentRect: frame)
         super.init(window: panel)
         panel.delegate = self
         panel.contentView = NSHostingView(rootView: self.makeRootView())
+        self.configureWindowBehavior(for: panel, mode: self.mode)
+        self.observeHUDSettings()
         self.showWindow(nil)
         panel.orderFrontRegardless()
     }
@@ -35,16 +43,7 @@ final class HUDWindowController: NSWindowController, NSWindowDelegate, AppShellC
     }
 
     func handlePrimaryShortcut() {
-        self.toggleExpanded()
-    }
-
-    func windowDidMove(_ notification: Notification) {
-        self.persistState()
-    }
-
-    private func toggleExpanded() {
-        self.mode = self.mode == .expanded ? .collapsed : .expanded
-        self.applyMode()
+        self.toggleTucked()
     }
 
     private func toggleTucked() {
@@ -52,166 +51,119 @@ final class HUDWindowController: NSWindowController, NSWindowDelegate, AppShellC
         self.applyMode()
     }
 
+    func windowDidMove(_ notification: Notification) {
+        self.persistState()
+    }
+
+    func windowDidResize(_ notification: Notification) {
+        guard let window, self.mode != .tucked else { return }
+        self.expandedSize = window.frame.size
+        self.persistState()
+    }
+
     private func applyMode() {
+        self.applyMode(animated: true)
+    }
+
+    private func applyMode(animated: Bool) {
         guard let window else { return }
-        let size = Self.size(for: self.mode)
+        let size = self.resolvedSize(for: self.mode)
         var frame = window.frame
         frame.size = size
-        window.setFrame(frame, display: true, animate: true)
+        self.configureWindowBehavior(for: window, mode: self.mode)
+        window.setFrame(frame, display: true, animate: animated)
         window.contentView = NSHostingView(rootView: self.makeRootView())
         self.persistState()
     }
 
     private func persistState() {
         guard let window else { return }
-        self.persistence.save(mode: self.mode, origin: window.frame.origin)
+        let persistedSize = self.mode == .tucked ? self.expandedSize : window.frame.size
+        self.persistence.save(mode: self.mode, origin: window.frame.origin, size: persistedSize)
     }
 
     private func makeRootView() -> some View {
-        HUDShellView(
+        HUDRootView(
             store: self.store,
             settings: self.settings,
             mode: self.mode,
-            onToggleExpanded: { self.toggleExpanded() },
-            onToggleTucked: { self.toggleTucked() })
+            onToggleTucked: { self.toggleTucked() },
+            onRefresh: { [store = self.store] in
+                Task {
+                    await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                        await store.refresh(forceTokenUsage: true)
+                    }
+                }
+            })
     }
 
-    private static func initialFrame(origin: CGPoint?, mode: HUDDisplayMode) -> NSRect {
-        let size = self.size(for: mode)
+    private static func initialFrame(origin: CGPoint?, size: CGSize?, mode: HUDDisplayMode) -> NSRect {
+        let defaultSize = self.defaultSize(for: mode, scale: 1.0)
+        let resolvedSize: CGSize = if mode == .tucked {
+            self.defaultSize(for: .tucked, scale: 1.0)
+        } else if let size {
+            CGSize(width: max(size.width, 280), height: max(size.height, 220))
+        } else {
+            defaultSize
+        }
         if let origin {
-            return NSRect(origin: origin, size: size)
+            return NSRect(origin: origin, size: resolvedSize)
         }
 
         let visibleFrame = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
         let defaultOrigin = CGPoint(
-            x: visibleFrame.maxX - size.width - 28,
-            y: visibleFrame.maxY - size.height - 56)
-        return NSRect(origin: defaultOrigin, size: size)
+            x: visibleFrame.maxX - resolvedSize.width - 28,
+            y: visibleFrame.maxY - resolvedSize.height - 56)
+        return NSRect(origin: defaultOrigin, size: resolvedSize)
     }
 
-    private static func size(for mode: HUDDisplayMode) -> NSSize {
+    private static func defaultSize(for mode: HUDDisplayMode, scale: Double) -> NSSize {
+        let scaled = CGFloat(scale)
         switch mode {
         case .collapsed:
-            NSSize(width: 260, height: 72)
+            return NSSize(width: 332 * scaled, height: 238 * scaled)
         case .expanded:
-            NSSize(width: 360, height: 188)
+            return NSSize(width: 332 * scaled, height: 238 * scaled)
         case .tucked:
-            NSSize(width: 80, height: 52)
-        }
-    }
-}
-
-private struct HUDShellView: View {
-    @Bindable var store: UsageStore
-    @Bindable var settings: SettingsStore
-    let mode: HUDDisplayMode
-    let onToggleExpanded: () -> Void
-    let onToggleTucked: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("Usage HUD")
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Button(self.mode == .tucked ? "Show" : "Tuck", action: self.onToggleTucked)
-                    .buttonStyle(.plain)
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundStyle(.secondary)
-            }
-
-            if self.mode == .tucked {
-                Text("C/C")
-                    .font(.system(size: 16, weight: .bold, design: .rounded))
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .onTapGesture(perform: self.onToggleExpanded)
-            } else {
-                VStack(spacing: 8) {
-                    self.providerRow(.codex, title: "Codex")
-                    self.providerRow(.claude, title: "Claude")
-                }
-
-                if self.mode == .expanded {
-                    Divider().overlay(.white.opacity(0.08))
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Refresh: \(self.settings.refreshFrequency.label)")
-                        Text("Last update: \(self.lastUpdatedText)")
-                    }
-                    .font(.system(size: 11, design: .rounded))
-                    .foregroundStyle(.secondary)
-                }
-            }
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.black.opacity(0.82))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
-        )
-        .contentShape(Rectangle())
-        .onTapGesture {
-            guard self.mode != .tucked else { return }
-            self.onToggleExpanded()
+            return NSSize(width: 84 * scaled, height: 32 * scaled)
         }
     }
 
-    private var lastUpdatedText: String {
-        let dates = SimplifiedAppProviders.active.compactMap { self.store.snapshots[$0]?.updatedAt }
-        guard let latest = dates.max() else { return "No data yet" }
-        return UsageFormatter.updatedString(from: latest)
+    private func resolvedSize(for mode: HUDDisplayMode) -> NSSize {
+        if mode == .tucked {
+            return Self.defaultSize(for: .tucked, scale: self.settings.hudScale)
+        }
+        if let expandedSize {
+            return NSSize(width: max(expandedSize.width, 280), height: max(expandedSize.height, 220))
+        }
+        return Self.defaultSize(for: mode, scale: self.settings.hudScale)
     }
 
-    @ViewBuilder
-    private func providerRow(_ provider: UsageProvider, title: String) -> some View {
-        let snapshot = self.store.snapshots[provider]
-        let window = snapshot?.primary ?? snapshot?.secondary
-        let usedPercent = window?.usedPercent
-        let resetDescription = window.flatMap {
-            UsageFormatter.resetLine(for: $0, style: self.settings.resetTimeDisplayStyle)
+    private func configureWindowBehavior(for window: NSWindow, mode: HUDDisplayMode) {
+        if mode == .tucked {
+            window.styleMask.remove(.resizable)
+            window.minSize = Self.defaultSize(for: .tucked, scale: self.settings.hudScale)
+            window.maxSize = Self.defaultSize(for: .tucked, scale: self.settings.hudScale)
+        } else {
+            window.styleMask.insert(.resizable)
+            window.minSize = NSSize(width: 280, height: 220)
+            window.maxSize = NSSize(width: 700, height: 720)
         }
+    }
 
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(title)
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                Spacer()
-                if let usedPercent {
-                    Text("\(Int(usedPercent.rounded()))%")
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundStyle(.secondary)
-                } else if let error = self.store.error(for: provider) {
-                    Text(error)
-                        .font(.system(size: 11, design: .rounded))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                } else {
-                    Text("No data")
-                        .font(.system(size: 11, design: .rounded))
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            GeometryReader { proxy in
-                let width = max(0, min(proxy.size.width, proxy.size.width * CGFloat((usedPercent ?? 0) / 100)))
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Color.white.opacity(0.12))
-                    Capsule().fill(provider == .codex ? Color.green.opacity(0.85) : Color.orange.opacity(0.85))
-                        .frame(width: width)
-                }
-            }
-            .frame(height: 6)
-
-            if self.mode == .expanded, let resetDescription {
-                Text(resetDescription)
-                    .font(.system(size: 11, design: .rounded))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+    private func observeHUDSettings() {
+        withObservationTracking {
+            _ = self.settings.hudOpacity
+            _ = self.settings.hudScale
+            _ = self.settings.hudAppearanceStyle
+            _ = self.settings.hudAccent
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.observeHUDSettings()
+                guard let window = self.window else { return }
+                self.configureWindowBehavior(for: window, mode: self.mode)
+                window.contentView = NSHostingView(rootView: self.makeRootView())
             }
         }
     }
