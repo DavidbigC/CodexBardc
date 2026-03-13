@@ -11,27 +11,11 @@ enum AppShellControllerFactory {
         -> AppShellControlling
 
     static let defaultFactory: Factory = { store, settings, account, updater, selection in
-        StatusItemAppShellController(
-            statusController: StatusItemController.factory(
-                store,
-                settings,
-                account,
-                updater,
-                selection))
+        _ = account
+        _ = updater
+        _ = selection
+        return HUDWindowController(store: store, settings: settings)
     }
 
     static var factory: Factory = AppShellControllerFactory.defaultFactory
-}
-
-@MainActor
-private final class StatusItemAppShellController: AppShellControlling {
-    private let statusController: StatusItemControlling
-
-    init(statusController: StatusItemControlling) {
-        self.statusController = statusController
-    }
-
-    func handlePrimaryShortcut() {
-        self.statusController.openMenuFromShortcut()
-    }
 }

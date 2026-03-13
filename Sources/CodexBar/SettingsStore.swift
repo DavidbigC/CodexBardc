@@ -199,7 +199,7 @@ extension SettingsStore {
            let legacyPreference = MenuBarMetricPreference(rawValue: menuBarMetricRaw)
         {
             resolvedPreferences = Dictionary(
-                uniqueKeysWithValues: UsageProvider.allCases.map { ($0.rawValue, legacyPreference.rawValue) })
+                uniqueKeysWithValues: SimplifiedAppProviders.active.map { ($0.rawValue, legacyPreference.rawValue) })
         }
         let costUsageEnabled = userDefaults.object(forKey: "tokenCostUsageEnabled") as? Bool ?? false
         let hidePersonalInfo = userDefaults.object(forKey: "hidePersonalInfo") as? Bool ?? false
@@ -272,8 +272,8 @@ extension SettingsStore {
         self.providerOrder = Self.effectiveProviderOrder(raw: rawOrder)
         let metadata = ProviderDescriptorRegistry.metadata
         var enablement: [UsageProvider: Bool] = [:]
-        enablement.reserveCapacity(metadata.count)
-        for provider in UsageProvider.allCases {
+        enablement.reserveCapacity(SimplifiedAppProviders.active.count)
+        for provider in SimplifiedAppProviders.active {
             let defaultEnabled = metadata[provider]?.defaultEnabled ?? false
             enablement[provider] = config.providerConfig(for: provider)?.enabled ?? defaultEnabled
         }
@@ -331,28 +331,18 @@ extension SettingsStore {
 
         for rawValue in raw {
             guard let provider = UsageProvider(rawValue: rawValue) else { continue }
+            guard SimplifiedAppProviders.activeSet.contains(provider) else { continue }
             guard !seen.contains(provider) else { continue }
             seen.insert(provider)
             ordered.append(provider)
         }
 
         if ordered.isEmpty {
-            ordered = UsageProvider.allCases
+            ordered = SimplifiedAppProviders.active
             seen = Set(ordered)
         }
 
-        if !seen.contains(.factory), let zaiIndex = ordered.firstIndex(of: .zai) {
-            ordered.insert(.factory, at: zaiIndex)
-            seen.insert(.factory)
-        }
-
-        if !seen.contains(.minimax), let zaiIndex = ordered.firstIndex(of: .zai) {
-            let insertIndex = ordered.index(after: zaiIndex)
-            ordered.insert(.minimax, at: insertIndex)
-            seen.insert(.minimax)
-        }
-
-        for provider in UsageProvider.allCases where !seen.contains(provider) {
+        for provider in SimplifiedAppProviders.active where !seen.contains(provider) {
             ordered.append(provider)
         }
 

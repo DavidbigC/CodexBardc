@@ -14,7 +14,7 @@ struct ProviderRegistry {
     static let shared: ProviderRegistry = .init()
 
     init(metadata: [UsageProvider: ProviderMetadata] = ProviderDescriptorRegistry.metadata) {
-        self.metadata = metadata
+        self.metadata = metadata.filter { SimplifiedAppProviders.activeSet.contains($0.key) }
     }
 
     @MainActor
@@ -26,9 +26,9 @@ struct ProviderRegistry {
         browserDetection: BrowserDetection) -> [UsageProvider: ProviderSpec]
     {
         var specs: [UsageProvider: ProviderSpec] = [:]
-        specs.reserveCapacity(UsageProvider.allCases.count)
+        specs.reserveCapacity(SimplifiedAppProviders.active.count)
 
-        for provider in UsageProvider.allCases {
+        for provider in SimplifiedAppProviders.active {
             let descriptor = ProviderDescriptorRegistry.descriptor(for: provider)
             let meta = metadata[provider]!
             let spec = ProviderSpec(
@@ -76,6 +76,7 @@ struct ProviderRegistry {
             debugKeepCLISessionsAlive: settings.debugKeepCLISessionsAlive)
         let context = ProviderSettingsSnapshotContext(settings: settings, tokenOverride: tokenOverride)
         for implementation in ProviderCatalog.all {
+            guard SimplifiedAppProviders.activeSet.contains(implementation.id) else { continue }
             if let contribution = implementation.settingsSnapshot(context: context) {
                 builder.apply(contribution)
             }

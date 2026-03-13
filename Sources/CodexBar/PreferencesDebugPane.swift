@@ -169,7 +169,7 @@ struct DebugPane: View {
                     caption: "Last fetch pipeline decisions and errors for a provider.")
                 {
                     Picker("Provider", selection: self.$currentFetchProvider) {
-                        ForEach(UsageProvider.allCases, id: \.self) { provider in
+                        ForEach(SimplifiedAppProviders.active, id: \.self) { provider in
                             Text(provider.rawValue.capitalized).tag(provider)
                         }
                     }

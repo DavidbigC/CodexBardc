@@ -366,7 +366,7 @@ struct ProvidersPane: View {
     }
 
     private func runSettingsDidBecomeActiveHooks() {
-        for provider in UsageProvider.allCases {
+        for provider in SimplifiedAppProviders.active {
             for toggle in self.extraSettingsToggles(for: provider) {
                 guard let hook = toggle.onAppDidBecomeActive else { continue }
                 Task { @MainActor in

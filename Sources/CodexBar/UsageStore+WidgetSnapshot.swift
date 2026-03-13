@@ -19,7 +19,7 @@ extension UsageStore {
 
     private func makeWidgetSnapshot() -> WidgetSnapshot {
         let enabledProviders = self.enabledProviders()
-        let entries = UsageProvider.allCases.compactMap { provider in
+        let entries = SimplifiedAppProviders.active.compactMap { provider in
             self.makeWidgetEntry(for: provider)
         }
         return WidgetSnapshot(entries: entries, enabledProviders: enabledProviders, generatedAt: Date())
